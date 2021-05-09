@@ -5,8 +5,6 @@ A webserver for the ESP32, that allows to control vibration motors attached to c
 <img src="resources/Overview.svg" alt="Overview"  />
 
 ## Usage
-On startup, the TingleDongle Server opens a Wlan network called `Tingledongle` and the password `tingletingle`. 
-
  Step                                                         | QR Code                                                      
  ------------------------------------------------------------ | ------------------------------------------------------------ 
  Log into the TingleDongle Servers WLAN called `Tingledongle` using the password `tingletingle`. You can use the QR code. | ![Login with QR code](https://zxing.org/w/chart?cht=qr&chs=230x230&chld=L&choe=UTF-8&chl=WIFI%3AS%3ATingledongle%3BT%3AWPA%3BP%3Atingletingle%3B%3B) 
@@ -15,6 +13,8 @@ On startup, the TingleDongle Server opens a Wlan network called `Tingledongle` a
 
 
 ## Pin Layout
+SPI is used to pipe data to the shift registers.
+PWN on a separate enable line controls the motor power for all motors together.
 
 Function | Number
 ---------|-------:

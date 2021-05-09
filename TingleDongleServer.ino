@@ -1,3 +1,4 @@
+#include <memory>
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WebServer.h>
@@ -10,7 +11,15 @@
 const auto ssid = "Tingledongle";
 const auto password = "tingletingle";
 
-TingleWebServer<2>* tingleserver;
+const auto enable_pin = 17;
+const auto mosi_pin  = 23;
+const auto clock_pin = 19;
+const auto chip_select_pin = 16;
+const auto num_chained_dongles = 2;
+
+using TingleServer = TingleWebServer<num_chained_dongles>;
+
+std::unique_ptr<TingleServer> tingleserver;
 
 
 void setup(void) {
@@ -30,10 +39,10 @@ void setup(void) {
 
   MDNS.addService("http", "tcp", 80);
 
-  auto shiftregister = Shiftregister<2>(23, 19, 16);
-  auto motors = Motorinterface<2>(17, std::move(shiftregister));
-
-  tingleserver = new TingleWebServer<2>(80, std::move(motors));
+  auto shiftregister = Shiftregister<num_chained_dongles>(mosi_pin, clock_pin, chip_select_pin);
+  auto motor_interface = Motorinterface<num_chained_dongles>(enable_pin, std::move(shiftregister));
+  tingleserver = std::unique_ptr<TingleServer>(new TingleServer(80, std::move(motor_interface)));
+  
   Serial.println("HTTP server started");
 }
 

@@ -2,7 +2,7 @@
 
 A webserver for the ESP32, that allows to control vibration motors attached to chained shift registers aka TingleDongles:
 
-<img src="resources/Overview.svg" alt="Overview"  />
+![TingleDongle Hardware](resources/Overview.png)
 
 ## Usage
  Step                                                         | QR Code                                                      

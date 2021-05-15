@@ -3,13 +3,14 @@
 #include <WebServer.h>
 #include <HTTPUpdateServer.h>
 
-
+#include "MotorPlacement.h"
 #include "Motorinterface.h"
+#include "DirectionTingler.h"
 
 template<size_t CHAIN_LENGTH>
 class TingleWebServer {
   public:
-    TingleWebServer(uint16_t port, Motorinterface<CHAIN_LENGTH> motors) : server_(port), motors_(std::move(motors)) {
+    TingleWebServer(uint16_t port, Motorinterface<CHAIN_LENGTH> motors) : server_(port), motors_(std::move(motors)), calibrator_(motors_, motor_placement_), direction_tingler_(motors_, motor_placement_) {
       server_.on("/", [this]() {
         handleMotorArgs();
         serveMainPage();
@@ -23,6 +24,25 @@ class TingleWebServer {
         handleNotFound();
       });
 
+      server_.on("/angle", [this] () {
+        for (uint8_t i = 0; i < server_.args(); i++) {
+          auto argname = server_.argName(i);
+          auto arg = server_.arg(i);
+          if (argname == "heading") {
+            direction_tingler_.current_heading_ = normalizeAngle(arg.toFloat());
+          }
+
+          if (argname == "target") {
+            direction_tingler_.target_heading_ = normalizeAngle(arg.toFloat());
+          }
+
+          direction_tingler_.doTingle();
+        }
+
+        server_.send(200, "text/html", "OK: " + String(direction_tingler_.current_heading_) + " " + String(direction_tingler_.target_heading_));
+
+      });
+
       firmware_updater_.setup(&server_);
 
       server_.begin();
@@ -34,7 +54,11 @@ class TingleWebServer {
   private:
     WebServer server_;
     Motorinterface<CHAIN_LENGTH> motors_;
+    MotorPlacement<CHAIN_LENGTH * 8> motor_placement_ = {};
     HTTPUpdateServer firmware_updater_;
+    MotorPlacementCalibrator<CHAIN_LENGTH> calibrator_;
+    DirectionTingler<CHAIN_LENGTH> direction_tingler_;
+
 
     void handleMotorArgs() {
       bool target_state = false;
@@ -65,41 +89,88 @@ class TingleWebServer {
         if (argname == "power") {
           motors_.setPower(arg.toInt());
         }
+
+        if (argname == "set_calibration_reference") {
+          calibrator_.setReferenceAngle(direction_tingler_.current_heading_);
+        }
+
+        if (argname == "start_calibrate") {
+          auto motor = arg.toInt();
+          if (motor > 0) {
+            calibrator_.startCalibration(motor - 1);
+          }
+        }
+
+        if (argname == "stop_calibrate") {
+          calibrator_.stopCalibration(direction_tingler_.current_heading_);
+        }
+
+        if (argname == "abort_calibrate") {
+          calibrator_.abortCalibration();
+        }
+
+        if ( argname == "tingle") {
+          direction_tingler_.is_tingling = (arg == "on");
+        }
       }
     }
 
+    String command(String cmd, String name) {
+      return "<a href=.?" + std::move(cmd) + ">" + name + "</a>";
+    }
+
+    String cell(String body) {
+      return "<td>" + std::move(body) + "</td>";
+    }
+
+    String colored_cell (String body, String color) {
+      return "<td style=\"background-color:" + std::move(color) + ";\">" + std::move(body) + "</td>";
+    }
+
+
+    String motor(size_t idx) {
+      auto next_state = String(motors_.get(idx) ? "OFF" : "ON");
+      auto cmd = "state=" + std::move(next_state) + "&motor=" + String(idx + 1);
+      auto name = "M" + String((idx % 8) + 1);
+      return command(std::move(cmd), std::move(name));
+    }
+
+    String motor_cell(size_t idx) {
+      return motors_.get(idx) ? colored_cell(motor(idx), "#333333") : cell(motor(idx));
+    }
+
+
     void serveMainPage() {
+      // <meta http-equiv='refresh' content='1'/>
       String header = "<head><title>Tingledongle</title></head>";
 
       String title = "<h1>Tingledongle</h1>";
 
-      String allon = "<a href=.?command=ALLON>ON</a>";
-      String alloff = "<a href=.?command=ALLOFF>OFF</a>";
+      String tingle_ctrl = "<h1>" + (direction_tingler_.is_tingling ? command("tingle=off", "TINGLE OFF") : command("tingle=on", "TINGLE ON")) + "</h1>";
 
-      auto cell = [](String && body) {
-        return "<td>" + std::move(body) + "</td>";
-      };
+      String allon = command("command=ALLON", "ON");
+      String alloff = command("command=ALLOFF", "OFF");
 
-      auto colored_cell = [](String && body, String && color) {
-        return "<td style=\"background-color:" + std::move(color) + ";\">" + std::move(body) + "</td>";
-      };
 
       String main_ctrl = "<table>" + cell("All Motors") + colored_cell(std::move(allon), "#8AE234") + colored_cell(std::move(alloff), "#FF403B") + "</table>";
+      String calibration_ctrl = "<table>" + cell("Calibration") +
+                                colored_cell(command("set_calibration_reference=here", "Set Reference Direction"), "#6666FF") +
+                                colored_cell(command("abort_calibrate=now", "Not feeling it!"), "#FF403B") + cell("Reference: " + String(calibrator_.getReferenceAngle())) + "</table>";
 
-      auto motor = [&](size_t idx) {
-        auto next_state = String(motors_.get(idx) ? "OFF" : "ON");
-        return "<a href=.?state=" + std::move(next_state) + "&motor=" + String(idx + 1) + ">M" + String((idx % 8) + 1) + "</a>";
-      };
-
-      auto motor_cell = [&](size_t idx) {
-        return motors_.get(idx) ? colored_cell(motor(idx), "#333333") : cell(motor(idx));
-      };
-
-      String motor_ctrl = "<table>" + cell("Motors");
+      String motor_ctrl = "<table><tr>" + cell("Motors");
       for (size_t m = 0; m < motors_.size(); m++) {
         motor_ctrl += motor_cell(m);
       }
-      motor_ctrl += "</table>";
+      motor_ctrl += "</tr><tr>" + cell("Calibration");
+
+      for (size_t m = 0; m < motors_.size(); m++) {
+        if (calibrator_.isCalibrating()) {
+          motor_ctrl += calibrator_.getCurrentMotor() == m ? cell(command("stop_calibrate=now", "x")) : cell("");
+        } else {
+          motor_ctrl += motor_placement_.motors_[m].activated ? cell("") : cell(command("start_calibrate=" + String(m + 1), "c"));
+        }
+      }
+      motor_ctrl += "</tr></table>";
 
       auto powerlevel = [](int level) {
         return "<a href=.?power=" + String(map(level, 0, 100, 0, 255)) + ">" + String(level) + "</a>";
@@ -133,7 +204,7 @@ class TingleWebServer {
 
       String sys = "<table>" + cell(uptime()) + cell("<a href=/update>Update Firmware</a>") + cell("<a href=/auth>Change WLAN</a>") + "</table>";
 
-      String body = "<body>" + title + "<br>" + main_ctrl + "<br>" + motor_ctrl + "<br>" + powerlevels(10) + "<br>" + sys + "</body>";
+      String body = "<body>" + title + "<br>" + tingle_ctrl + "<br>" + main_ctrl + "<br>" + calibration_ctrl + "<br>" + motor_ctrl + "<br>" + powerlevels(10) + "<br>" + sys + "</body>";
 
       String mainpage = "<html>" + header + body + "</html>";
 

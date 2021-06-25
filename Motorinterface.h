@@ -2,30 +2,29 @@
 
 #include "Shiftregister.h"
 
-template<size_t CHAIN_LENGTH>
+template<size_t NUM_MOTORS>
 class Motorinterface {
+  constexpr static auto NUM_BYTES = (int)ceil(NUM_MOTORS/8.);
   public:
-    Motorinterface(int8_t power_pin, Shiftregister<CHAIN_LENGTH> shri) : shri_(std::move(shri)) {
-      ledcAttachPin(power_pin, 1);
-      ledcSetup(1, 12000, 8);
-
+    Motorinterface(int8_t power_pin) : power_pin_(power_pin) {
+      pinMode(power_pin, OUTPUT);
       setPower(0);
     }
 
     void allOn() {
-      for (size_t i = 0; i < CHAIN_LENGTH; i++) motor_states_[i] = 0b11111111;
+      for (size_t i = 0; i < NUM_BYTES; i++) motor_states_[i] = 0b11111111;
       updateShiftRegister();
     }
 
 
     void allOff() {
-      for (size_t i = 0; i < CHAIN_LENGTH; i++) motor_states_[i] = 0;
+      for (size_t i = 0; i < NUM_BYTES; i++) motor_states_[i] = 0;
       updateShiftRegister();
     }
 
     void set(size_t idx, boolean enabled) {
+      if (idx >= size()) return;
       size_t register_id = idx / 8;
-      if (register_id >= CHAIN_LENGTH) return;
       uint8_t bit_id = idx % 8;
 
       motor_states_[register_id] ^= (-enabled ^ motor_states_[register_id]) & (1UL << bit_id);
@@ -33,15 +32,15 @@ class Motorinterface {
     }
 
     bool get(size_t idx) const {
+      if (idx >= size()) return false;
       size_t register_id = idx / 8;
-      if (register_id >= CHAIN_LENGTH) return false;
       uint8_t bit_id = idx % 8;
 
       return (motor_states_[register_id] >> bit_id) & 0x1;
     }
 
     void setPower(uint8_t power) {
-      ledcWrite(1, 255 - power);
+      digitalWrite(power_pin_, power);
       current_power_ = power;
     }
 
@@ -50,13 +49,15 @@ class Motorinterface {
     }
 
     size_t size() const {
-      return CHAIN_LENGTH * 8;
+      return NUM_MOTORS;
     }
 
   private:
-    Shiftregister<CHAIN_LENGTH> shri_;
-    byte motor_states_[CHAIN_LENGTH];
+    Shiftregister<NUM_BYTES> shri_;
+    int8_t power_pin_;
+    byte motor_states_[NUM_BYTES];
     uint8_t current_power_;
+    
 
     void updateShiftRegister() {
       shri_.send(motor_states_);

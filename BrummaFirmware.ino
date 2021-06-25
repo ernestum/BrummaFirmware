@@ -48,6 +48,6 @@ void printHelp() {
     "Commands:\n"
     "'h' or 'H'\tdisplay this help text\n"
     "'p<number>'\tset the power of the motors between 0 and 100\n"
-    "0010010\tor any variation thereof enables/disables the motors. The lenght has to match the number of motors\n"
+    "0010010\tor any variation thereof enables/disables the motors. The length has to match the number of motors\n"
     );
 }

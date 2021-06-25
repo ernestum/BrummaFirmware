@@ -40,7 +40,7 @@ class Motorinterface {
     }
 
     void setPower(uint8_t power) {
-      digitalWrite(power_pin_, power);
+      analogWrite(power_pin_, power);
       current_power_ = power;
     }
 

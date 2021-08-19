@@ -1,5 +1,7 @@
 #pragma once
 
+#include <limits>
+#include <algorithm>
 #include "Motorinterface.h"
 
 template<class T>
@@ -19,7 +21,7 @@ T normalizeAngle(T a) {
 
 struct MotorInfo {
   float angle = 0.0;
-  bool activated = false;
+  bool activated = true;
 
   String toString() {
     return "{" + String(angle) + ", " + (activated ? "true" : "false") + "}";
@@ -39,7 +41,12 @@ class MotorPlacement {
       return std::distance(std::begin(motors_), min_elem);
     }
 
-    bool isOppositeOf(float angle, size_t motor) {
+    float angularDistanceToMotor(size_t motor, float angle) {
+      if (motor >= NUM_MOTORS or not motors_[motor].activated) return std::numeric_limits<float>::max();
+      return angularDistance(angle, motors_[motor].angle);
+    }
+
+    bool isOppositeOf(size_t motor, float angle) {
       if (motor >= NUM_MOTORS or not motors_[motor].activated) return false;
       return angularDistance(normalizeAngle(angle), motors_[motor].angle) > 180;
     }

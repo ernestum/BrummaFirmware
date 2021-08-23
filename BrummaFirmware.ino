@@ -68,9 +68,9 @@ void applyTargetYawCharacteristic() {
   //    auto motor = motor_placement.getMotorForAngle(newTargetAngle);
   for (size_t i = 0; i < num_motors; ++i) {
     auto angular_distance = motor_placement.angularDistanceToMotor(i, newTargetAngle);
-    auto intensity = constrain(map(angular_distance, 0, 180, -255, 255), 0, 255);
+    auto intensity = constrain(map(angular_distance, 0, 180, 255, -255), 0, 255);
     Serial.print(angular_distance); Serial.print("\t");
-    Serial.print(map(angular_distance, 0, 180, -255, 255)); Serial.print("\t");
+    Serial.print(map(angular_distance, 0, 180, 255, -255)); Serial.print("\t");
     Serial.println(intensity);
     motor_intensities.set(i, intensity);
   }

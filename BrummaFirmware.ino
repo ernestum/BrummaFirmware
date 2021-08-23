@@ -5,10 +5,15 @@
 #include <ArduinoBLE.h>
 
 const auto enable_pin = 10;
-const auto num_motors = 5;
+//const auto num_motors = 5; // PT1
+const auto num_motors = 4; // PT2
 
 auto motor_interface = Motorinterface<num_motors>(enable_pin);
-auto motor_placement = MotorPlacement<num_motors> {{{45}, {90}, {180}, {360 - 90}, {360 - 45}}};
+//auto motor_placement = MotorPlacement<num_motors> {{{45}, {90}, {180}, {360 - 90}, {360 - 45}}}; // PT1
+auto motor_placement = MotorPlacement<num_motors> {{
+    {360 - 90}, {360 - 45}, {45}, {90}
+  }
+}; // PT2
 auto motor_intensities = MotorintensityInterface<num_motors>(motor_interface);
 
 BLEService directionService("22d40000-458f-44cc-b199-2d6ae6c69984");
